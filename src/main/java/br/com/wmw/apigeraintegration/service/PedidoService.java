@@ -1,20 +1,31 @@
 package br.com.wmw.apigeraintegration.service;
 
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+
+import br.com.wmw.apigeraintegration.mapper.DynamicJsonMapper;
+import br.com.wmw.apigeraintegration.mapper.DynamicJsonMapper.CampoConfig;
 import reactor.core.publisher.Mono;
 
 @Service
 public class PedidoService {
 
 	private final WebClient webClient;
+	private final DynamicJsonMapper dynamicJsonMapper;
 	
-	public PedidoService(WebClient webClient) {
+	public PedidoService(WebClient webClient, DynamicJsonMapper dynamicJsonMapper) {
 		this.webClient = webClient;
+		this.dynamicJsonMapper = dynamicJsonMapper;
 	}
 
-	public Mono<String> getClassificacaoComercia(String idDistribuidor) {
+	public Mono<String> getClassificacaoComercial(String idDistribuidor) {
 		return webClient.post()
 	            .uri("/distributor/" + idDistribuidor + "/industrysegmentation")
 	            .bodyValue("""
@@ -37,17 +48,20 @@ public class PedidoService {
 	            .bodyToMono(String.class);
 	}
 
-	public Mono<String> criaPedido(String idDistribuidor) {
+	public Mono<String> criaPedido(String idDistribuidor, JsonNode requestBody) {
+		String body = getBodyCriacaoPedido(requestBody);
 		return webClient.post()
 	            .uri("/distributor/" + idDistribuidor + "/promotions/orders?includeOptions=requirements&includeOptions=targetTypeProducts&includeOptions=awards")
-	            .bodyValue(getCriaPedidoBody())
+	            .bodyValue(body)
 	            .retrieve()
 	            .bodyToMono(String.class);
 	}
 
-	private Object getCriaPedidoBody() {
-		// TODO Auto-generated method stub
-		return null;
+	private String getBodyCriacaoPedido(JsonNode requestBody) {
+		ObjectMapper mapper = new ObjectMapper();
+	    List<CampoConfig> campoConfigList = mapper.convertValue(requestBody.get("configCampoIntegList"), new TypeReference<List<CampoConfig>>() {});
+	    ((ObjectNode) requestBody).remove("configCampoIntegList");
+		return dynamicJsonMapper.mapJsonToOutput(requestBody.get("pedido"), campoConfigList);
 	}
 
 	public Mono<String> getRecomendacaoComercial(String idDistribuidor) {

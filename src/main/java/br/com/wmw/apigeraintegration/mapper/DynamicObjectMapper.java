@@ -6,6 +6,8 @@ import java.util.List;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
+import br.com.wmw.apigeraintegration.mapper.DynamicJsonMapper.CampoConfig;
+
 public class DynamicObjectMapper {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -65,16 +67,5 @@ public class DynamicObjectMapper {
         throw new NoSuchFieldException("Campo " + nome + " não encontrado na classe " + clazz.getName());
     }
 
-    public static class CampoConfig {
-        private String nmCampoSistema; // Ex: pedido.cliente.cdCliente
-        private String nmCampoErp;     // Ex: paymentInformation.paymentPlanCode
-
-        public CampoConfig(String sistema, String erp) {
-            this.nmCampoSistema = sistema;
-            this.nmCampoErp = erp;
-        }
-
-        public String getNmCampoSistema() { return nmCampoSistema; }
-        public String getNmCampoErp() { return nmCampoErp; }
-    }
+  
 }

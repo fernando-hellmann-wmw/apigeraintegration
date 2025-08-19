@@ -2,8 +2,12 @@ package br.com.wmw.apigeraintegration.controller;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import com.fasterxml.jackson.databind.JsonNode;
 
 import br.com.wmw.apigeraintegration.service.AuthService;
 import br.com.wmw.apigeraintegration.service.PedidoService;
@@ -29,12 +33,12 @@ public class ApiGeraIntegrationController {
 	
 	@GetMapping("/classifcomercial/{idDistribuidor}")
     public Mono<String> getClassificacaoComercia(@PathVariable String idDistribuidor) {
-        return pedidoService.getClassificacaoComercia(idDistribuidor);
+        return pedidoService.getClassificacaoComercial(idDistribuidor);
 	}
 	
-	@GetMapping("/criapedido/{idDistribuidor}")
-    public Mono<String> criaPedido(@PathVariable String idDistribuidor) {
-        return pedidoService.criaPedido(idDistribuidor);
+	@PostMapping("/criapedido/{idDistribuidor}")
+    public Mono<String> criaPedido(@PathVariable String idDistribuidor, @RequestBody JsonNode body) {
+        return pedidoService.criaPedido(idDistribuidor, body);
 	}
 	
 	@GetMapping("/recomendcomercial/{idDistribuidor}")

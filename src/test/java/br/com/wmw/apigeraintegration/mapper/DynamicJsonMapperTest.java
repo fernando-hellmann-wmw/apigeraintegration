@@ -11,7 +11,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
-import br.com.wmw.apigeraintegration.mapper.DynamicObjectMapper.CampoConfig;
+import br.com.wmw.apigeraintegration.mapper.DynamicJsonMapper.CampoConfig;
 
 @SpringBootTest
 public class DynamicJsonMapperTest {
@@ -23,15 +23,15 @@ public class DynamicJsonMapperTest {
 		JsonNode pedidoNode = mapper.readTree(jsonPedido);
 
 		List<CampoConfig> campos = List.of(
-				new CampoConfig("cdEmpresa", "codEmp"),
-				new CampoConfig("cdCondicaoPagamento", "codCondicaoPagamento"),
-				new CampoConfig("qtPeso", "peso"),
-				new CampoConfig("itemPedidoList.itemTabelaPreco.vlMaxAcrescimo", "item.maxAcrescimo"),
-				new CampoConfig("itemPedidoList.nuSeqProduto", "item.nuSeqProduto"),
-				new CampoConfig("cdCliente", "cliente.cdCliente"),
-				new CampoConfig("cliente.dsEstadoComercial", "cliente.estado"));
+				new CampoConfig("cdEmpresa", "codEmp",null),
+				new CampoConfig("cdCondicaoPagamento", "codCondicaoPagamento",null),
+//				new CampoConfig("qtPeso", "peso"),
+//				new CampoConfig("itemPedidoList.itemTabelaPreco.vlMaxAcrescimo", "item.maxAcrescimo"),
+//				new CampoConfig("itemPedidoList.nuSeqProduto", "item.nuSeqProduto"),
+//				new CampoConfig("cdCliente", "cliente.cdCliente"),
+				new CampoConfig("cliente.dsEstadoComercial", "cliente.estado", null));
 		DynamicJsonMapper dynamicJsonMapper = new DynamicJsonMapper();
-		ObjectNode resultado = dynamicJsonMapper.mapJsonToOutput(pedidoNode, campos);
+		String resultado = dynamicJsonMapper.mapJsonToOutput(pedidoNode, campos);
 
 	}
 

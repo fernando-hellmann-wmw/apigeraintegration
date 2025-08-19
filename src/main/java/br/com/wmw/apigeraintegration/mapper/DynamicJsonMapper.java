@@ -4,38 +4,45 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.springframework.stereotype.Service;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
-import br.com.wmw.apigeraintegration.mapper.DynamicObjectMapper.CampoConfig;
-
+@Service
 public class DynamicJsonMapper {
+	
     private final ObjectMapper mapper = new ObjectMapper();
 
-    public ObjectNode mapJsonToOutput(JsonNode inputJson, List<CampoConfig> campos) {
-        ObjectNode root = mapper.createObjectNode();
-        Map<String, List<CampoConfig>> agrupados = campos.stream()
-            .collect(Collectors.groupingBy(this::getPrefixoRaiz));
-        for (Map.Entry<String, List<CampoConfig>> entry : agrupados.entrySet()) {
-            String prefixoSaida = entry.getKey();
-            List<CampoConfig> grupo = entry.getValue();
-            String prefixoEntrada = grupo.get(0).getNmCampoSistema().split("\\.")[0];
-            JsonNode listaEntrada = inputJson.get(prefixoEntrada);
+    public String mapJsonToOutput(JsonNode jSonPedido, List<CampoConfig> configList) {
+        ObjectNode jSonSaida = mapper.createObjectNode();
+        Map<String, List<CampoConfig>> prefixGroupMap = configList.stream().collect(Collectors.groupingBy(this::getPrefixoRaiz));
+        for (Map.Entry<String, List<CampoConfig>> prefixo : prefixGroupMap.entrySet()) {
+            String prefixoSaida = prefixo.getKey();
+            List<CampoConfig> campoConfigList = prefixo.getValue();
+            String prefixoEntrada = campoConfigList.get(0).getNmCampoSistema().split("\\.")[0];
+            JsonNode listaEntrada = jSonPedido.get(prefixoEntrada);
             if (listaEntrada != null && listaEntrada.isArray()) {
-                ArrayNode lista = processarItensLista(listaEntrada, grupo, prefixoEntrada, prefixoSaida);
-                root.set(prefixoSaida, lista);
+                ArrayNode lista = processarItensLista(listaEntrada, campoConfigList, prefixoEntrada, prefixoSaida);
+                jSonSaida.set(prefixoSaida, lista);
             } else {
-                for (CampoConfig campo : grupo) {
-                    JsonNode valor = resolvePath(inputJson, campo.getNmCampoSistema());
+                for (CampoConfig campoConfig : campoConfigList) {
+                	JsonNode valor;
+                    if (campoConfig.getDsValorFixo() != null && !campoConfig.getDsValorFixo().isEmpty()) {
+                        valor = mapper.valueToTree(campoConfig.getDsValorFixo());
+                    } else {
+                        valor = getValueFromJson(jSonPedido, campoConfig.getNmCampoSistema());
+                    }
                     if (valor != null && !valor.isMissingNode()) {
-                        setPath(root, campo.getNmCampoErp(), valor);
+                        setValue(jSonSaida, campoConfig.getNmCampoErp(), valor);
                     }
                 }
             }
         }
-        return root;
+        return jSonSaida.toPrettyString();
     }
 
     private ArrayNode processarItensLista(JsonNode listaEntrada, List<CampoConfig> campos, String prefixoEntrada, String prefixoSaida) {
@@ -43,11 +50,16 @@ public class DynamicJsonMapper {
         for (JsonNode itemOrigem : listaEntrada) {
             ObjectNode itemDestino = mapper.createObjectNode();
             for (CampoConfig campo : campos) {
-                String pathDentroItem = removerPrefixo(campo.getNmCampoSistema(), prefixoEntrada);
-                String pathDestino = removerPrefixo(campo.getNmCampoErp(), prefixoSaida);
-                JsonNode valor = resolvePath(itemOrigem, pathDentroItem);
+                String pathDentroItem = removePrefixo(campo.getNmCampoSistema(), prefixoEntrada);
+                String pathDestino = removePrefixo(campo.getNmCampoErp(), prefixoSaida);
+                JsonNode valor;
+                if (campo.getDsValorFixo() != null && !campo.getDsValorFixo().isEmpty()) {
+                    valor = mapper.valueToTree(campo.getDsValorFixo());
+                } else {
+                    valor = getValueFromJson(itemOrigem, pathDentroItem);
+                }
                 if (valor != null && !valor.isMissingNode()) {
-                    setPath(itemDestino, pathDestino, valor);
+                    setValue(itemDestino, pathDestino, valor);
                 }
             }
             resultado.add(itemDestino);
@@ -55,42 +67,102 @@ public class DynamicJsonMapper {
         return resultado;
     }
 
-    private String removerPrefixo(String caminho, String prefixo) {
+    private String removePrefixo(String caminho, String prefixo) {
         if (caminho.startsWith(prefixo + ".")) {
             return caminho.substring(prefixo.length() + 1);
         }
         return caminho;
     }
 
-    private String getPrefixoRaiz(CampoConfig campo) {
-        return campo.getNmCampoErp().split("\\.")[0];
+    private String getPrefixoRaiz(CampoConfig configCampo) {
+        return configCampo.getNmCampoErp().split("\\.")[0];
     }
 
-    private JsonNode resolvePath(JsonNode node, String path) {
-        String[] partes = path.split("\\.");
-        JsonNode atual = node;
-        for (String parte : partes) {
+    private JsonNode getValueFromJson(JsonNode jSonPedido, String nmCampoSistema) {
+        String[] nivel = nmCampoSistema.split("\\.");
+        JsonNode atual = jSonPedido;
+        for (String atributo : nivel) {
             if (atual == null || atual.isMissingNode()) {
             	return null;
             }
-            atual = atual.get(parte);
+            atual = atual.get(atributo);
         }
         return atual;
     }
 
-    private void setPath(ObjectNode root, String path, JsonNode valor) {
-        if (path.isEmpty()) {
-        	return;
+    private void setValue(ObjectNode jSonSaida, String nmCampoJson, JsonNode valor) {
+	    if (nmCampoJson == null || nmCampoJson.isEmpty()) {
+	        return;
+	    }
+	    String[] niveisPropriedades = nmCampoJson.split("\\.");
+	    JsonNode jSonAtual = jSonSaida;
+	    for (int i = 0; i < niveisPropriedades.length; i++) {
+	        String propriedade = niveisPropriedades[i];
+	        // Caso seja array
+	        if (propriedade.matches(".+\\[\\d+\\]")) {
+	            String nomeArray = propriedade.substring(0, propriedade.indexOf("["));
+	            int index = Integer.parseInt(propriedade.substring(propriedade.indexOf("[") + 1, propriedade.indexOf("]")));
+	            ArrayNode arrayNode;
+	            if (!((ObjectNode) jSonAtual).has(nomeArray) || !((ObjectNode) jSonAtual).get(nomeArray).isArray()) {
+	                arrayNode = mapper.createArrayNode();
+	                ((ObjectNode) jSonAtual).set(nomeArray, arrayNode);
+	            } else {
+	                arrayNode = (ArrayNode) ((ObjectNode) jSonAtual).get(nomeArray);
+	            }
+	            // Expande o array até o índice necessário
+	            while (arrayNode.size() <= index) {
+	                arrayNode.add(mapper.createObjectNode());
+	            }
+	            // Último nível → seta valor direto
+	            if (i == niveisPropriedades.length - 1) {
+	                arrayNode.set(index, valor);
+	            } else {
+	                jSonAtual = arrayNode.get(index);
+	            }
+	        } 
+	        else { // Caso seja objeto
+	            if (i == niveisPropriedades.length - 1) {
+	                ((ObjectNode) jSonAtual).set(propriedade, valor);
+	            } else {
+	                if (!((ObjectNode) jSonAtual).has(propriedade) || !((ObjectNode) jSonAtual).get(propriedade).isObject()) {
+	                    ((ObjectNode) jSonAtual).set(propriedade, mapper.createObjectNode());
+	                }
+	                jSonAtual = ((ObjectNode) jSonAtual).get(propriedade);
+	            }
+	        }
+	    }
+    }
+
+    
+    public static class CampoConfig {
+    	
+        private String nmCampoSistema; 
+        private String nmCampoErp;     
+        private String dsValorFixo;     
+
+        public CampoConfig(@JsonProperty("nmCampoSistema") String nmCampoSistema, @JsonProperty("nmCampoErp") String nmCampoErp, @JsonProperty("dsValorFixo")String dsValorFixo) {
+        	this.nmCampoSistema = nmCampoSistema;
+        	this.nmCampoErp = nmCampoErp;
+        	this.dsValorFixo = dsValorFixo;
         }
-        String[] partes = path.split("\\.");
-        ObjectNode atual = root;
-        for (int i = 0; i < partes.length - 1; i++) {
-            String parte = partes[i];
-            if (!atual.has(parte) || !atual.get(parte).isObject()) {
-                atual.set(parte, mapper.createObjectNode());
-            }
-            atual = (ObjectNode) atual.get(parte);
-        }
-        atual.set(partes[partes.length - 1], valor);
+        
+		public String getNmCampoSistema() {
+			return nmCampoSistema;
+		}
+		public void setNmCampoSistema(String nmCampoSistema) {
+			this.nmCampoSistema = nmCampoSistema;
+		}
+		public String getNmCampoErp() {
+			return nmCampoErp;
+		}
+		public void setNmCampoErp(String nmCampoErp) {
+			this.nmCampoErp = nmCampoErp;
+		}
+		public String getDsValorFixo() {
+			return dsValorFixo;
+		}
+		public void setDsValorFixo(String dsValorFixo) {
+			this.dsValorFixo = dsValorFixo;
+		}
     }
 }
